@@ -8,13 +8,18 @@ servers:
   - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
 
 paths:
-  /api/open/query/do?query=alerts:
+  /api/open/query/do:
     get:
       summary: Retrieve alerts
       operationId: getAlerts
       tags:
         - Alerts
       parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: Query conditions for alerts
         - in: query
           name: filter
           schema:
