@@ -8,7 +8,7 @@ servers:
   - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
 
 paths:
-  /api/open/query/do?query=alerts | exclude bpf_filter properties description | where time >= hours_ago(24) | where !is_incident | where risk >= 7:
+  /api/open/query/do?query=alerts | exclude bpf_filter properties description | where time >= hours_ago(24) | where !is_incident | where risk >= 9:
     get:
       summary: Retrieve alerts
       operationId: getAlerts
