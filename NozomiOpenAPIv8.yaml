@@ -1,0 +1,68 @@
+openapi: 3.0.0
+info:
+  title: Nozomi Enhanced API
+  version: 2.0.0
+  description: Enhanced OpenAPI specification for Nozomi
+
+servers:
+  - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
+
+paths:
+  /api/open/query/do:
+    get:
+      summary: Execute Nozomi Query
+      operationId: executeQuery
+      parameters:
+        - in: query
+          name: query
+          description: Nozomi query language statement
+          schema:
+            type: string
+          required: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: array
+                    items:
+                      type: object
+                  header:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /api/open/alerts/{id}/trace:
+    get:
+      summary: Get alert trace/PCAP
+      operationId: getAlertTrace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
