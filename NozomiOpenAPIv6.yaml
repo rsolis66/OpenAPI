@@ -1,23 +1,20 @@
 openapi: 3.0.0
 info:
-  title: Nozomi Networks API for Security Copilot
-  description: API specification for integrating Nozomi Networks with Microsoft Security Copilot
+  title: Nozomi Networks Alerts API
+  description: OpenAPI specification for Nozomi Networks Alerts API integration with Microsoft Security Copilot
   version: 1.0.0
-  contact:
-    name: API Support
-    email: support@nozominetworks.com
-
+  
 servers:
   - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
-    description: Production Nozomi Instance
+    description: Nozomi Networks Vantage Instance
 
 paths:
   /api/open/sign_in:
     post:
       tags:
         - Authentication
-      summary: Authenticate and get JWT token
-      description: Authenticates using API key and returns a JWT token valid for 30 minutes
+      summary: Authenticate with Nozomi API
+      description: Authenticate using API key credentials to obtain a JWT token
       operationId: authenticate
       requestBody:
         required: true
@@ -28,11 +25,10 @@ paths:
               properties:
                 key_name:
                   type: string
-                  description: API Key Name from Nozomi Networks
+                  description: API Key Name
                 key_token:
                   type: string
-                  description: API Key Token from Nozomi Networks
-                  format: password
+                  description: API Key Token
               required:
                 - key_name
                 - key_token
@@ -46,41 +42,56 @@ paths:
                 properties:
                   token:
                     type: string
-                    description: JWT Bearer token
+                    description: JWT Bearer token (valid for 30 minutes)
+                  expires_in:
+                    type: integer
+                    description: Token expiration time in seconds
         '401':
           description: Authentication failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
 
   /api/open/query/do:
     get:
       tags:
         - Alerts
       summary: Query Nozomi alerts
-      description: Execute a query to retrieve alerts based on specified criteria
+      description: Execute queries to retrieve alerts using Nozomi Query Language
       operationId: queryAlerts
       security:
-        - BearerAuth: []
+        - bearerAuth: []
       parameters:
         - name: query
           in: query
           required: true
-          description: Query in Nozomi Query Language format
+          description: Nozomi Query Language expression
           schema:
             type: string
-            default: "alerts | where time >= hours_ago(24) | where risk >= 7"
           examples:
-            highRiskRecent:
+            highRisk24Hours:
               summary: High risk alerts from last 24 hours
               value: "alerts | where time >= hours_ago(24) | where risk >= 7"
+            highRiskNoIncidents:
+              summary: High risk alerts excluding incidents
+              value: "alerts | where time >= hours_ago(24) | where risk >= 7 | where !is_incident"
             criticalSecurity:
               summary: Critical security alerts
               value: "alerts | where is_security == true | where severity == 'critical'"
             unacknowledged:
-              summary: Unacknowledged alerts
+              summary: Unacknowledged alerts from last week
               value: "alerts | where ack == false | where time >= hours_ago(168)"
+            malwareDetected:
+              summary: Malware detection alerts
+              value: "alerts | where type_id == 'SIGN:MALWARE-DETECTED'"
+            byThreatName:
+              summary: Alerts by threat name
+              value: "alerts | where threat_name != null | where time >= hours_ago(24)"
       responses:
         '200':
           description: Query executed successfully
@@ -94,47 +105,99 @@ paths:
                     description: Column headers for the result set
                     items:
                       type: object
+                      properties:
+                        name:
+                          type: string
+                        type:
+                          type: string
                   result:
                     type: array
-                    description: Array of alert objects
+                    description: Array of alert objects matching the query
                     items:
                       $ref: '#/components/schemas/Alert'
                   total:
                     type: integer
                     description: Total number of results
+                    example: 42
         '400':
           description: Invalid query syntax
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid query syntax at position 15"
         '401':
           description: Unauthorized - Token expired or invalid
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Token has expired"
         '429':
-          description: Rate limit exceeded
+          description: Rate limit exceeded (60 requests per minute)
           headers:
             Retry-After:
               description: Number of seconds to wait before retrying
               schema:
                 type: integer
+                example: 30
+
+  /api/open/alerts/all:
+    get:
+      tags:
+        - Alerts
+      summary: Get all alert IDs
+      description: Retrieve IDs of alerts matching a condition
+      operationId: getAllAlertIds
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: Filter query in Nozomi Query Language format
+          schema:
+            type: string
+        - name: has_trace
+          in: query
+          required: false
+          description: Include trace status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Alert IDs retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  ids:
+                    type: array
+                    items:
+                      type: string
+                    description: Array of alert IDs
+                  traces:
+                    type: object
+                    description: Trace availability status for each alert ID
+        '404':
+          description: No alerts match the specified conditions
 
   /api/open/alerts/{id}:
     get:
       tags:
         - Alerts
-      summary: Get specific alert details
+      summary: Get specific alert
       description: Retrieve detailed information about a specific alert
-      operationId: getAlert
+      operationId: getAlertById
       security:
-        - BearerAuth: []
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -142,29 +205,25 @@ paths:
           description: Alert ID
           schema:
             type: string
+            format: uuid
       responses:
         '200':
-          description: Alert details retrieved successfully
+          description: Alert retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Alert'
         '404':
           description: Alert not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
-  /api/open/alerts/{id}/trace:
-    get:
+    patch:
       tags:
         - Alerts
-      summary: Download alert packet trace
-      description: Download the PCAP trace file associated with an alert
-      operationId: getAlertTrace
+      summary: Update alert note
+      description: Update the note field of an alert
+      operationId: updateAlertNote
       security:
-        - BearerAuth: []
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -172,20 +231,24 @@ paths:
           description: Alert ID
           schema:
             type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  description: Note to add to the alert
       responses:
         '200':
-          description: Trace file download
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '404':
-          description: Trace not found for this alert
+          description: Alert updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/Alert'
 
   /api/open/alerts/ack:
     post:
@@ -195,7 +258,7 @@ paths:
       description: Acknowledge or unacknowledge multiple alerts
       operationId: acknowledgeAlerts
       security:
-        - BearerAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -210,6 +273,7 @@ paths:
                     properties:
                       id:
                         type: string
+                        format: uuid
                         description: Alert ID
                       ack:
                         type: boolean
@@ -221,7 +285,7 @@ paths:
                 - data
       responses:
         '200':
-          description: Acknowledgment request accepted
+          description: Acknowledgment job created
           content:
             application/json:
               schema:
@@ -229,17 +293,52 @@ paths:
                 properties:
                   job_id:
                     type: string
-                    description: Job ID to track the operation status
-        '422':
-          description: Invalid request format
+                    description: Job ID to track the operation
+
+  /api/open/alerts/close:
+    post:
+      tags:
+        - Alerts
+      summary: Close alerts
+      description: Close multiple alerts as security or change
+      operationId: closeAlerts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Array of alert IDs to close
+                close_action:
+                  type: string
+                  enum: [delete_rules, learn_rules]
+                  description: How to close the alerts
+              required:
+                - ids
+                - close_action
+      responses:
+        '200':
+          description: Close job created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    description: Job ID to track the operation
 
 components:
   securitySchemes:
-    BearerAuth:
+    bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
@@ -251,10 +350,11 @@ components:
       properties:
         id:
           type: string
+          format: uuid
           description: Unique alert identifier
         type_id:
           type: string
-          description: Alert type identifier
+          description: Alert type identifier (e.g., SIGN:MALWARE-DETECTED)
         name:
           type: string
           description: Alert name
@@ -272,25 +372,36 @@ components:
           description: Risk score (0-10)
         time:
           type: integer
+          format: int64
           description: Timestamp in epoch milliseconds
+        created_time:
+          type: integer
+          format: int64
+          description: Alert creation timestamp
+        closed_time:
+          type: integer
+          format: int64
+          description: Alert closure timestamp (0 if open)
         ack:
           type: boolean
           description: Acknowledgment status
+        status:
+          type: string
+          enum: [open, closed, in_progress]
+          description: Alert status
         is_security:
           type: boolean
           description: True if cybersecurity alert
         is_incident:
           type: boolean
-          description: True if this is an incident grouping multiple alerts
-        status:
-          type: string
-          enum: [open, closed, in_progress]
-          description: Alert status
+          description: True if incident grouping multiple alerts
         ip_src:
           type: string
+          format: ipv4
           description: Source IP address
         ip_dst:
           type: string
+          format: ipv4
           description: Destination IP address
         mac_src:
           type: string
@@ -307,6 +418,9 @@ components:
         protocol:
           type: string
           description: Protocol name
+        transport_protocol:
+          type: string
+          description: Transport protocol (tcp/udp/icmp)
         label_src:
           type: string
           description: Source node label
@@ -319,25 +433,47 @@ components:
         zone_dst:
           type: string
           description: Destination network zone
+        appliance_id:
+          type: string
+          description: ID of sensor that detected the alert
+        appliance_host:
+          type: string
+          description: Hostname of sensor
+        appliance_ip:
+          type: string
+          description: IP of sensor
+        appliance_site:
+          type: string
+          description: Site name of sensor
         threat_name:
           type: string
           description: Name of identified threat
+        trigger_id:
+          type: string
+          description: ID of triggering engine entity
+        trigger_type:
+          type: string
+          description: Name of trigger/engine
+        session_id:
+          type: string
+          description: Session ID during which alert was raised
+        bpf_filter:
+          type: string
+          description: BPF filter for capturing related traffic
         properties:
           type: object
           description: Additional alert properties
         note:
           type: string
           description: User-defined notes
-
-    Error:
-      type: object
-      properties:
-        error:
+        parents:
+          type: array
+          items:
+            type: string
+          description: Parent incident IDs
+        capture_device:
           type: string
-          description: Error message
-        code:
-          type: integer
-          description: Error code
-        details:
-          type: string
-          description: Additional error details
+          description: Network interface that detected the alert
+        sec_profile_visible:
+          type: boolean
+          description: Visibility according to Security Profile
