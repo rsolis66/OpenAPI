@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Nozomi Enhanced API
   version: 2.0.0
-  description: Enhanced OpenAPI specification for Nozomi
+  description: Enhanced OpenAPI specification for Nozomi Networks
 
 servers:
   - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
@@ -12,6 +12,8 @@ paths:
     get:
       summary: Execute Nozomi Query
       operationId: executeQuery
+      tags:
+        - Query
       parameters:
         - in: query
           name: query
@@ -37,17 +39,26 @@ paths:
                       type: object
                   total:
                     type: integer
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
 
   /api/open/alerts/{id}/trace:
     get:
       summary: Get alert trace/PCAP
       operationId: getAlertTrace
+      tags:
+        - Alerts
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
+          description: Alert ID
       responses:
         '200':
           description: Trace file
@@ -56,6 +67,170 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          description: Alert or trace not found
+        '422':
+          description: Invalid alert ID
+
+  /api/open/alerts/ack:
+    post:
+      summary: Acknowledge alerts
+      operationId: acknowledgeAlerts
+      tags:
+        - Alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Alert ID
+                      ack:
+                        type: boolean
+                        description: Acknowledge status
+      responses:
+        '200':
+          description: Job ID for tracking acknowledgment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Job ID
+        '422':
+          description: Invalid request format
+
+  /api/open/alerts/close:
+    post:
+      summary: Close alerts
+      operationId: closeAlerts
+      tags:
+        - Alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of alert IDs
+                close_action:
+                  type: string
+                  enum: [delete_rules, learn_rules]
+                  description: Close action type
+      responses:
+        '200':
+          description: Job ID for tracking closure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+
+  /api/open/nodes/import_from_json:
+    post:
+      summary: Import node/asset data
+      operationId: importNodes
+      tags:
+        - Nodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                      label:
+                        type: string
+                      vendor:
+                        type: string
+                      product_name:
+                        type: string
+                      firmware_version:
+                        type: string
+                      serial_number:
+                        type: string
+                      mac_address:
+                        type: string
+                      type:
+                        type: string
+      responses:
+        '201':
+          description: Import successful
+        '422':
+          description: Invalid data format
+
+  /api/open/cli:
+    post:
+      summary: Execute CLI command
+      operationId: executeCLI
+      tags:
+        - System
+      parameters:
+        - in: query
+          name: cmd
+          required: true
+          schema:
+            type: string
+          description: CLI command to execute
+      responses:
+        '200':
+          description: Command execution result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/v1/keys/sign_in:
+    post:
+      summary: Authenticate with API key
+      operationId: authenticate
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                key_name:
+                  type: string
+                key_token:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful
+          headers:
+            Authorization:
+              schema:
+                type: string
+                description: Bearer token
+        '401':
+          description: Authentication failed
 
 components:
   securitySchemes:
