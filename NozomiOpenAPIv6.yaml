@@ -1,0 +1,343 @@
+openapi: 3.0.0
+info:
+  title: Nozomi Networks API for Security Copilot
+  description: API specification for integrating Nozomi Networks with Microsoft Security Copilot
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@nozominetworks.com
+
+servers:
+  - url: https://ernstyoung.customers.us1.vantage.nozominetworks.io
+    description: Production Nozomi Instance
+
+paths:
+  /api/open/sign_in:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate and get JWT token
+      description: Authenticates using API key and returns a JWT token valid for 30 minutes
+      operationId: authenticate
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                key_name:
+                  type: string
+                  description: API Key Name from Nozomi Networks
+                key_token:
+                  type: string
+                  description: API Key Token from Nozomi Networks
+                  format: password
+              required:
+                - key_name
+                - key_token
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT Bearer token
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/open/query/do:
+    get:
+      tags:
+        - Alerts
+      summary: Query Nozomi alerts
+      description: Execute a query to retrieve alerts based on specified criteria
+      operationId: queryAlerts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Query in Nozomi Query Language format
+          schema:
+            type: string
+            default: "alerts | where time >= hours_ago(24) | where risk >= 7"
+          examples:
+            highRiskRecent:
+              summary: High risk alerts from last 24 hours
+              value: "alerts | where time >= hours_ago(24) | where risk >= 7"
+            criticalSecurity:
+              summary: Critical security alerts
+              value: "alerts | where is_security == true | where severity == 'critical'"
+            unacknowledged:
+              summary: Unacknowledged alerts
+              value: "alerts | where ack == false | where time >= hours_ago(168)"
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  header:
+                    type: array
+                    description: Column headers for the result set
+                    items:
+                      type: object
+                  result:
+                    type: array
+                    description: Array of alert objects
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  total:
+                    type: integer
+                    description: Total number of results
+        '400':
+          description: Invalid query syntax
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - Token expired or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              description: Number of seconds to wait before retrying
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/open/alerts/{id}:
+    get:
+      tags:
+        - Alerts
+      summary: Get specific alert details
+      description: Retrieve detailed information about a specific alert
+      operationId: getAlert
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Alert ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alert details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '404':
+          description: Alert not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/open/alerts/{id}/trace:
+    get:
+      tags:
+        - Alerts
+      summary: Download alert packet trace
+      description: Download the PCAP trace file associated with an alert
+      operationId: getAlertTrace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Alert ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Trace not found for this alert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/open/alerts/ack:
+    post:
+      tags:
+        - Alerts
+      summary: Acknowledge alerts
+      description: Acknowledge or unacknowledge multiple alerts
+      operationId: acknowledgeAlerts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Alert ID
+                      ack:
+                        type: boolean
+                        description: True to acknowledge, false to unacknowledge
+                    required:
+                      - id
+                      - ack
+              required:
+                - data
+      responses:
+        '200':
+          description: Acknowledgment request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    description: Job ID to track the operation status
+        '422':
+          description: Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/open/sign_in endpoint
+
+  schemas:
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique alert identifier
+        type_id:
+          type: string
+          description: Alert type identifier
+        name:
+          type: string
+          description: Alert name
+        description:
+          type: string
+          description: Detailed alert description
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+          description: Alert severity level
+        risk:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: Risk score (0-10)
+        time:
+          type: integer
+          description: Timestamp in epoch milliseconds
+        ack:
+          type: boolean
+          description: Acknowledgment status
+        is_security:
+          type: boolean
+          description: True if cybersecurity alert
+        is_incident:
+          type: boolean
+          description: True if this is an incident grouping multiple alerts
+        status:
+          type: string
+          enum: [open, closed, in_progress]
+          description: Alert status
+        ip_src:
+          type: string
+          description: Source IP address
+        ip_dst:
+          type: string
+          description: Destination IP address
+        mac_src:
+          type: string
+          description: Source MAC address
+        mac_dst:
+          type: string
+          description: Destination MAC address
+        port_src:
+          type: integer
+          description: Source port
+        port_dst:
+          type: integer
+          description: Destination port
+        protocol:
+          type: string
+          description: Protocol name
+        label_src:
+          type: string
+          description: Source node label
+        label_dst:
+          type: string
+          description: Destination node label
+        zone_src:
+          type: string
+          description: Source network zone
+        zone_dst:
+          type: string
+          description: Destination network zone
+        threat_name:
+          type: string
+          description: Name of identified threat
+        properties:
+          type: object
+          description: Additional alert properties
+        note:
+          type: string
+          description: User-defined notes
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: integer
+          description: Error code
+        details:
+          type: string
+          description: Additional error details
