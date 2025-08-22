@@ -33,11 +33,11 @@ paths:
                   result:
                     type: array
                     items:
-                      type: object
+                      type: string
                   header:
                     type: array
                     items:
-                      type: object
+                      type: string
                   total:
                     type: integer
                     example: 0
@@ -60,7 +60,7 @@ paths:
       parameters:
         - in: query
           name: query
-          description: Query for alerts with specific filters (e.g., risk level >= 7 in past 24 hours)
+          description: Query for alerts with specific filters
           schema:
             type: string
             example: "alerts | exclude bpf_filter properties description | where time >= hours_ago(216) | where !is_incident | where risk >= 7"
@@ -75,40 +75,11 @@ paths:
                   result:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        type_id:
-                          type: string
-                        name:
-                          type: string
-                        severity:
-                          type: integer
-                        risk:
-                          type: integer
-                        time:
-                          type: integer
-                        ip_src:
-                          type: string
-                        ip_dst:
-                          type: string
-                        mac_src:
-                          type: string
-                        mac_dst:
-                          type: string
-                        protocol:
-                          type: string
-                        ack:
-                          type: boolean
-                        is_incident:
-                          type: boolean
-                        is_security:
-                          type: boolean
+                      type: string
                   header:
                     type: array
                     items:
-                      type: object
+                      type: string
                   total:
                     type: integer
         '400':
@@ -157,19 +128,8 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                data:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                        description: Alert ID
-                      ack:
-                        type: boolean
-                        description: Acknowledge status
+              type: string
+              description: JSON string containing alert acknowledgment data
       responses:
         '200':
           description: Job ID for tracking acknowledgment
@@ -228,29 +188,8 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                nodes:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      ip:
-                        type: string
-                      label:
-                        type: string
-                      vendor:
-                        type: string
-                      product_name:
-                        type: string
-                      firmware_version:
-                        type: string
-                      serial_number:
-                        type: string
-                      mac_address:
-                        type: string
-                      type:
-                        type: string
+              type: string
+              description: JSON string containing nodes data to import
       responses:
         '201':
           description: Import successful
