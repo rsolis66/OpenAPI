@@ -21,6 +21,7 @@ paths:
           schema:
             type: string
           required: true
+          example: "alerts | exclude bpf_filter properties description | where time >= hours_ago(24) | where !is_incident | where risk >= 7"
       responses:
         '200':
           description: Successful response
@@ -39,10 +40,83 @@ paths:
                       type: object
                   total:
                     type: integer
+                    example: 0
         '400':
           description: Bad request
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden
+        '500':
+          description: Internal server error
+
+  /api/open/alerts:
+    get:
+      summary: Retrieve alerts with specific criteria
+      operationId: getAlerts
+      tags:
+        - Alerts
+      description: Query alerts that have been created within the specified time period with risk level filtering
+      parameters:
+        - in: query
+          name: query
+          description: Query for alerts with specific filters (e.g., risk level >= 7 in past 24 hours)
+          schema:
+            type: string
+            example: "alerts | exclude bpf_filter properties description | where time >= hours_ago(216) | where !is_incident | where risk >= 7"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type_id:
+                          type: string
+                        name:
+                          type: string
+                        severity:
+                          type: integer
+                        risk:
+                          type: integer
+                        time:
+                          type: integer
+                        ip_src:
+                          type: string
+                        ip_dst:
+                          type: string
+                        mac_src:
+                          type: string
+                        mac_dst:
+                          type: string
+                        protocol:
+                          type: string
+                        ack:
+                          type: boolean
+                        is_incident:
+                          type: boolean
+                        is_security:
+                          type: boolean
+                  header:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
         '500':
           description: Internal server error
 
